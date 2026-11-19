@@ -767,45 +767,92 @@ function showError(seconds, time) {
 
 function hideError() { bannerEl.hidden = true; }
 
-async function fetchGist(gistId) {
+async function fetchGistApi(gistId) {
   return fetch(`https://api.github.com/gists/${encodeURIComponent(gistId)}`, {
     headers: { Accept: "application/vnd.github+json" },
+    cache: "no-store",
   });
 }
 
+async function fetchRawFiles(gistId) {
+  // Unauthenticated api.github.com is easily rate-limited from shared IPs.
+  // Raw gist files are public-if-you-know-the-id and allow CORS.
+  const base = `https://gist.githubusercontent.com/Ayma85/${encodeURIComponent(gistId)}/raw`;
+  const bust = `t=${Date.now()}`;
+  const names = ["state.json", "chart.json", "activity.json", "coins.json"];
+  const out = {};
+  for (const name of names) {
+    const res = await fetch(`${base}/${name}?${bust}`, { cache: "no-store" });
+    if (name === "state.json" && !res.ok) return null;
+    if (!res.ok) continue;
+    try { out[name] = JSON.parse(await res.text()); } catch { return null; }
+  }
+  return out;
+}
+
+function packFromApi(gist) {
+  const state = parseGistFile(gist, "state.json");
+  const activity = parseGistFile(gist, "activity.json") || { events: [] };
+  const chart = parseGistFile(gist, "chart.json") || { points: [], marks: [] };
+  const coinsWrap = parseGistFile(gist, "coins.json");
+  return { state, activity, chart, coins: (coinsWrap && coinsWrap.coins) || [] };
+}
+
+function packFromRaw(files) {
+  if (!files || !files["state.json"]) return { state: null, activity: { events: [] }, chart: { points: [], marks: [] }, coins: [] };
+  return {
+    state: files["state.json"],
+    activity: files["activity.json"] || { events: [] },
+    chart: files["chart.json"] || { points: [], marks: [] },
+    coins: (files["coins.json"] && files["coins.json"].coins) || [],
+  };
+}
+
+function applyPack(link, pack) {
+  const state = pack && pack.state;
+  const observed = state && (state.data_path || state.dataPath);
+  if (!state || !pathsMatch(link.dataPath, observed)) return false;
+  retryMs = BASE_INTERVAL_MS;
+  hideError();
+  snapshot = pack;
+  lastGood = snapshot;
+  lastUpdate = state.ts;
+  renderAll();
+  return true;
+}
+
+function failTick() {
+  if (lastGood) {
+    showError(Math.round(retryMs / 1000), fmtTime(lastUpdate));
+    showApp();
+  } else {
+    // A stored link that cannot be read yet is "offline", not "Not linked".
+    showApp();
+    showError(Math.round(retryMs / 1000), fmtTime(lastUpdate));
+  }
+}
+
 async function tick(link) {
+  let ok = false;
   try {
-    const res = await fetchGist(link.gistId);
-    if (res.status === 403 || res.status === 429) {
+    const res = await fetchGistApi(link.gistId);
+    if (res.ok) {
+      ok = applyPack(link, packFromApi(await res.json()));
+    } else if (res.status === 403 || res.status === 429) {
       retryMs = Math.min(retryMs * 2, MAX_INTERVAL_MS);
-      if (lastGood) { showError(Math.round(retryMs / 1000), fmtTime(lastUpdate)); showApp(); }
-      else showUnlinked();
-    } else if (!res.ok) {
-      if (lastGood) { showError(Math.round(retryMs / 1000), fmtTime(lastUpdate)); showApp(); }
-      else showUnlinked();
-    } else {
-      const gist = await res.json();
-      const state = parseGistFile(gist, "state.json");
-      const activity = parseGistFile(gist, "activity.json") || { events: [] };
-      const chart = parseGistFile(gist, "chart.json") || { points: [], marks: [] };
-      const coinsWrap = parseGistFile(gist, "coins.json");
-      const observed = state && (state.data_path || state.dataPath);
-      if (!state || !pathsMatch(link.dataPath, observed)) {
-        if (lastGood) { showError(Math.round(retryMs / 1000), fmtTime(lastUpdate)); showApp(); }
-        else showUnlinked();
-      } else {
-        retryMs = BASE_INTERVAL_MS;
-        hideError();
-        snapshot = { state, chart, activity, coins: (coinsWrap && coinsWrap.coins) || [] };
-        lastGood = snapshot;
-        lastUpdate = state.ts;
-        renderAll();
-      }
     }
   } catch {
-    if (lastGood) { showError(Math.round(retryMs / 1000), fmtTime(lastUpdate)); showApp(); }
-    else showUnlinked();
+    // try raw fallback below
   }
+  if (!ok) {
+    try {
+      const files = await fetchRawFiles(link.gistId);
+      ok = applyPack(link, packFromRaw(files));
+    } catch {
+      ok = false;
+    }
+  }
+  if (!ok) failTick();
   clearTimeout(retryTimer);
   retryTimer = setTimeout(() => tick(link), retryMs);
 }
