@@ -2,25 +2,155 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Grok Bot Desk - PAPER</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Grok Bot</title>
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Grok Bot">
+  <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#111111">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <main>
-    <h1>Grok Bot Desk - PAPER</h1>
-    <p id="status">Not linked</p>
-    <section id="desk" hidden>
-      <p>Mode: <span id="mode"></span></p>
-      <p>Balance: <span id="balance"></span></p>
-      <p>Updated: <span id="updated"></span></p>
-      <ul id="activity"></ul>
-    </section>
-  </main>
+  <div id="unlinked" class="unlinked" hidden>
+    <p class="unlinked-msg">Not linked</p>
+  </div>
+
+  <div id="app" hidden>
+    <div id="banner" class="banner" hidden></div>
+
+    <main id="main">
+      <section id="view-home" class="view is-active" data-view="home">
+        <header class="navbar">
+          <button type="button" class="avatar" id="home-avatar" aria-label="Account">G</button>
+          <button type="button" class="wordmark" id="home-title" aria-label="Grok Bot">Grok Bot <span class="chevron">›</span></button>
+          <button type="button" class="icon-btn" id="btn-search" aria-label="Search">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="6.25" stroke="currentColor" stroke-width="1.7"/><path d="M14.8 14.8L19 19" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+          <button type="button" class="icon-btn" id="btn-bell" aria-label="Notifications">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M11 3.2a4.6 4.6 0 00-4.6 4.6c0 3.1-1.2 4.3-1.2 4.3h11.6s-1.2-1.2-1.2-4.3A4.6 4.6 0 0011 3.2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 17.3a2 2 0 003.9 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span class="bell-dot" id="bell-dot" hidden></span>
+          </button>
+        </header>
+
+        <div class="hero">
+          <div class="balance-row">
+            <div class="balance odometer" id="balance">$0.00</div>
+            <span class="pill paper" id="paper-badge">PAPER</span>
+          </div>
+          <div class="stats-row">
+            <span class="today" id="today-pct">+0.00%</span>
+            <span class="pill multiplier" id="multiplier">1.00x</span>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <canvas id="chart" width="358" height="180"></canvas>
+          <div class="range-switch" id="ranges" role="tablist" aria-label="Chart range">
+            <button type="button" data-range="LIVE">LIVE</button>
+            <button type="button" data-range="1H">1H</button>
+            <button type="button" data-range="4H">4H</button>
+            <button type="button" data-range="1D" class="is-on">1D</button>
+            <button type="button" data-range="1W">1W</button>
+            <button type="button" data-range="ALL">ALL</button>
+          </div>
+        </div>
+
+        <article class="live-card" id="live-card">
+          <div class="live-frame" id="live-frame">
+            <div class="live-top">
+              <span class="live-dot-row" id="live-age"><span class="dot grey"></span> Last frame —</span>
+              <span class="live-lane" id="live-lane">Idle</span>
+            </div>
+            <div class="live-placeholder" id="live-placeholder">Live screen stays on the desk · via Telegram (Step 11)</div>
+          </div>
+          <div class="live-order" id="live-order">No orders yet</div>
+        </article>
+
+        <section class="block">
+          <div class="block-head">
+            <h2 id="bots-running">Bots · 0 running</h2>
+          </div>
+          <div class="carousel" id="bot-carousel"></div>
+        </section>
+
+        <section class="block">
+          <div class="block-head">
+            <h2>Activity</h2>
+            <button type="button" class="see-all" id="see-all-activity">See all</button>
+          </div>
+          <div class="rows" id="home-activity"></div>
+        </section>
+      </section>
+
+      <section id="view-bots" class="view" data-view="bots">
+        <header class="navbar page">
+          <h1>Bots</h1>
+        </header>
+        <div id="bots-list" class="stack"></div>
+      </section>
+
+      <section id="view-activity" class="view" data-view="activity">
+        <header class="navbar page">
+          <h1>Activity</h1>
+        </header>
+        <div class="rows" id="activity-list"></div>
+      </section>
+
+      <section id="view-account" class="view" data-view="account">
+        <header class="navbar page">
+          <h1>Account</h1>
+        </header>
+        <div id="account-body" class="stack account"></div>
+      </section>
+
+      <section id="view-coin" class="view" data-view="coin">
+        <header class="navbar page">
+          <button type="button" class="back" id="coin-back" aria-label="Back">‹</button>
+          <div class="nav-title">
+            <h1 id="coin-title">Coin</h1>
+            <span class="pill paper coin-paper" id="coin-paper">PAPER</span>
+          </div>
+        </header>
+        <div id="coin-body" class="stack"></div>
+      </section>
+
+      <section id="view-audit" class="view" data-view="audit">
+        <header class="navbar page">
+          <button type="button" class="back" id="audit-back" aria-label="Back">‹</button>
+          <div class="nav-title">
+            <h1 id="audit-title">Audit</h1>
+          </div>
+        </header>
+        <div id="audit-body" class="stack"></div>
+      </section>
+
+      <section id="view-search" class="view" data-view="search">
+        <header class="navbar page">
+          <button type="button" class="back" id="search-back" aria-label="Back">‹</button>
+          <input id="search-input" type="search" placeholder="Name, symbol or mint" enterkeyhint="search" autocomplete="off">
+        </header>
+        <div class="rows" id="search-results"></div>
+      </section>
+    </main>
+
+    <nav class="tabbar" id="tabbar">
+      <button type="button" class="tab is-on" data-tab="home">Home</button>
+      <button type="button" class="tab" data-tab="bots">Bots</button>
+      <button type="button" class="tab" data-tab="activity">Activity</button>
+      <button type="button" class="tab" data-tab="account">Account</button>
+    </nav>
+  </div>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-card" id="sheet-card"></div>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

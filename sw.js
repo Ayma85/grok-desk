@@ -1,7 +1,30 @@
-/* Service worker stub for the desk PWA. Caching lands in a later step. */
+/* Cache the app shell so it can be added to the iPhone home screen.
+   Gist data is fetched from api.github.com and is never cached here. */
+const SHELL = "./shell-v10";
+const ASSETS = ["./", "./index.html", "./app.css", "./app.js", "./chart.js", "./manifest.json", "./icons/apple-touch-icon.png", "./icons/icon-192.png", "./icons/icon-512.png"];
+
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(SHELL).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
 });
+
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== SHELL).map((k) => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+  event.respondWith(
+    fetch(event.request).then((res) => {
+      const copy = res.clone();
+      caches.open(SHELL).then((cache) => cache.put(event.request, copy)).catch(() => {});
+      return res;
+    }).catch(() => caches.match(event.request).then((hit) => hit || caches.match("./index.html")))
+  );
 });
