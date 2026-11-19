@@ -852,7 +852,16 @@ async function tick(link) {
       ok = false;
     }
   }
-  if (!ok) failTick();
+  if (!ok) {
+    failTick();
+    // First loads sometimes hit a GitHub challenge or rate-limit page
+    // with no CORS headers; retry quickly a few times, then settle to 90s.
+    window.__deskFailStreak = (window.__deskFailStreak || 0) + 1;
+    retryMs = window.__deskFailStreak <= 5 ? 2000 : BASE_INTERVAL_MS;
+  } else {
+    window.__deskFailStreak = 0;
+    retryMs = BASE_INTERVAL_MS;
+  }
   clearTimeout(retryTimer);
   retryTimer = setTimeout(() => tick(link), retryMs);
 }
