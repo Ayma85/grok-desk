@@ -629,7 +629,13 @@ function renderAccount(state) {
   const via = document.createElement("div");
   via.className = "via";
   via.style.marginTop = "8px";
-  via.textContent = `${VIA} · LIVE stays locked until you type LIVE in chat`;
+  const gate = (state && state.live_gate) || {};
+  if (gate.ready) {
+    via.textContent = mode === "PAPER" ? `${VIA} · LIVE is ready if you type LIVE in the Grok Bot chat` : `${VIA}`;
+  } else {
+    const missing = (gate.missing && gate.missing.length) ? gate.missing.join("; ") : "type LIVE in the Grok Bot chat";
+    via.textContent = `${VIA} · LIVE stays locked until you type LIVE in chat. Still needed: ${missing}`;
+  }
   const cash = document.createElement("div");
   cash.className = "price-lg";
   cash.style.fontSize = "36px";
