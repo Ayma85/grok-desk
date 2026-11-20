@@ -138,7 +138,7 @@ function openSheet(nodes) {
   $("sheet").hidden = false;
 }
 
-function viaTelegram() {
+function viaTelegram(extra) {
   const p = document.createElement("p");
   p.style.margin = "4px 0 12px";
   p.style.fontSize = "17px";
@@ -147,7 +147,10 @@ function viaTelegram() {
   const note = document.createElement("p");
   note.className = "muted";
   note.style.margin = "0 0 8px";
-  note.textContent = "Pause, sell and settings changes go through Telegram in Step 11.";
+  const msg = typeof extra === "string" && extra.trim()
+    ? extra
+    : "Pause, sell and settings changes go through Telegram in Step 11. Send set NAME to VALUE to change a setting.";
+  note.textContent = msg;
   openSheet([p, note]);
 }
 
@@ -438,28 +441,172 @@ function renderBotsTab(state) {
   });
 }
 
+function settingLabel(item) {
+  return item.label || (item.key || "").split(".").pop().replace(/_/g, " ");
+}
+
+function settingRangeText(item) {
+  if (item.min != null && item.max != null) {
+    const unit = item.unit ? ` ${item.unit}` : "";
+    return `${item.min} to ${item.max}${unit}`;
+  }
+  if (item.choices && item.choices.length) return item.choices.join(" or ");
+  if (item.type === "time") return "HH:MM";
+  if (item.type === "bool") return "on or off";
+  return "";
+}
+
+function displaySettingValue(item, value) {
+  if (item && item.redact && value && typeof value === "object") {
+    return value.set ? `••••${value.hint || ""}` : "Not set";
+  }
+  if (value == null || value === "") return "—";
+  if (typeof value === "boolean") return value ? "On" : "Off";
+  return String(value);
+}
+
+function proposeSet(item, value) {
+  const range = settingRangeText(item);
+  const num = Number(value);
+  if (item.min != null && item.max != null && Number.isFinite(num) && (num < item.min || num > item.max)) {
+    return;
+  }
+  viaTelegram(`To save this, send Telegram:\nset ${item.key} to ${value}` + (range ? `\nAllowed range: ${range}.` : ""));
+}
+
 function settingControl(item) {
   const wrap = document.createElement("div");
   wrap.className = "setting";
-  const key = item.key.split(".").pop().replace(/_/g, " ");
+  const typ = item.type || (Number.isFinite(Number(item.value)) ? "float" : "text");
   const lab = document.createElement("div");
-  lab.textContent = key;
-  const exact = document.createElement("div");
-  exact.className = "exact";
-  exact.textContent = item.value == null ? "—" : String(item.value);
-  wrap.append(lab, exact);
-  const n = Number(item.value);
-  if (Number.isFinite(n)) {
+  lab.className = "setting-lab";
+  lab.textContent = settingLabel(item);
+  wrap.appendChild(lab);
+
+  const err = document.createElement("div");
+  err.className = "setting-error";
+  err.hidden = true;
+
+  function showError(msg) {
+    if (!msg) { err.hidden = true; err.textContent = ""; return; }
+    err.hidden = false;
+    err.textContent = msg;
+  }
+
+  function refuseRange() {
+    const range = settingRangeText(item);
+    showError(range ? `Must be between ${range}.` : "Out of range.");
+  }
+
+  if (typ === "int" || typ === "float") {
+    const n = Number(item.value);
+    const exact = document.createElement("input");
+    exact.type = "number";
+    exact.className = "exact-input";
+    if (item.min != null) exact.min = String(item.min);
+    if (item.max != null) exact.max = String(item.max);
+    if (item.step != null) exact.step = String(item.step);
+    exact.value = Number.isFinite(n) ? String(n) : "";
+    exact.setAttribute("aria-label", `${settingLabel(item)} exact value`);
     const range = document.createElement("input");
     range.type = "range";
-    range.min = String(n < 0 ? n : 0);
-    range.max = String(n === 0 ? 1 : Math.max(n * 2, n));
-    range.step = Number.isInteger(n) ? "1" : "0.01";
-    range.value = String(n);
-    range.setAttribute("aria-label", `${key}, ${VIA}`);
-    range.addEventListener("input", (e) => { e.target.value = String(n); viaTelegram(); });
-    wrap.appendChild(range);
+    range.min = item.min != null ? String(item.min) : (Number.isFinite(n) && n < 0 ? String(n) : "0");
+    range.max = item.max != null ? String(item.max) : String(Number.isFinite(n) && n !== 0 ? Math.max(n * 2, n) : 1);
+    range.step = item.step != null ? String(item.step) : (typ === "int" ? "1" : "0.01");
+    range.value = Number.isFinite(n) ? String(n) : range.min;
+    range.setAttribute("aria-label", `${settingLabel(item)}, ${VIA}`);
+    const hint = document.createElement("div");
+    hint.className = "setting-hint";
+    hint.textContent = settingRangeText(item);
+    range.addEventListener("input", () => {
+      exact.value = range.value;
+      showError("");
+    });
+    range.addEventListener("change", () => proposeSet(item, range.value));
+    exact.addEventListener("change", () => {
+      const raw = exact.value;
+      const num = Number(raw);
+      const min = item.min != null ? Number(item.min) : -Infinity;
+      const max = item.max != null ? Number(item.max) : Infinity;
+      if (!Number.isFinite(num) || num < min || num > max) {
+        refuseRange();
+        exact.value = range.value;
+        return;
+      }
+      showError("");
+      range.value = String(num);
+      proposeSet(item, num);
+    });
+    wrap.append(exact, range, hint, err);
+    return wrap;
   }
+
+  if (typ === "bool") {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "ios-toggle" + (item.value ? " is-on" : "");
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("aria-checked", item.value ? "true" : "false");
+    toggle.addEventListener("click", () => {
+      viaTelegram(`To save this, send Telegram:\nset ${item.key} to ${item.value ? "false" : "true"}`);
+    });
+    wrap.append(toggle, err);
+    return wrap;
+  }
+
+  if (typ === "enum" || typ === "mode") {
+    const row = document.createElement("div");
+    row.className = "seg";
+    const cur = item.value == null ? "" : String(item.value);
+    (item.choices || []).forEach((choice) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "seg-btn" + (String(choice) === cur ? " is-on" : "");
+      b.textContent = choice;
+      b.addEventListener("click", () => {
+        if (typ === "mode") viaTelegram();
+        else viaTelegram(`To save this, send Telegram:\nset ${item.key} to ${choice}`);
+      });
+      row.appendChild(b);
+    });
+    wrap.append(row, err);
+    return wrap;
+  }
+
+  if (typ === "time") {
+    const input = document.createElement("input");
+    input.type = "time";
+    input.className = "exact-input";
+    input.value = item.value || "";
+    input.setAttribute("aria-label", settingLabel(item));
+    input.addEventListener("change", () => {
+      const v = input.value;
+      if (!/^\d{2}:\d{2}$/.test(v)) {
+        showError("Time must be HH:MM.");
+        input.value = item.value || "";
+        return;
+      }
+      showError("");
+      proposeSet(item, v);
+    });
+    wrap.append(input, err);
+    return wrap;
+  }
+
+  const input = document.createElement("input");
+  input.type = typ === "url" ? "url" : "text";
+  input.className = "exact-input wide";
+  if (item.redact && item.value && typeof item.value === "object") {
+    input.value = item.value.set ? `••••${item.value.hint || ""}` : "";
+    input.placeholder = item.value.set ? "Set" : "Not set";
+  } else {
+    input.value = item.value == null ? "" : String(item.value);
+  }
+  input.setAttribute("aria-label", settingLabel(item));
+  input.addEventListener("change", () => {
+    proposeSet(item, input.value);
+  });
+  wrap.append(input, err);
   return wrap;
 }
 
@@ -518,19 +665,47 @@ function renderAccount(state) {
   actions.appendChild(invite);
   body.appendChild(actions);
 
-  (state && state.settings || []).forEach((group) => {
+  const settingsNote = document.createElement("div");
+  settingsNote.className = "via settings-note";
+  settingsNote.textContent = "These are the desk's current settings. Changes from this phone go through Telegram: set NAME to VALUE.";
+  body.appendChild(settingsNote);
+
+  const schemaGroups = state && state.settings_schema && state.settings_schema.groups;
+  const groups = schemaGroups || (state && state.settings) || [];
+  groups.forEach((group) => {
     const card = document.createElement("article");
     card.className = "card";
     const h = document.createElement("h3");
-    h.textContent = group.label;
+    h.textContent = group.label || group.id;
     card.appendChild(h);
-    const note = document.createElement("div");
-    note.className = "via";
-    note.textContent = VIA;
-    card.appendChild(note);
-    (group.items || []).forEach((item) => card.appendChild(settingControl(item)));
+    const items = group.fields || group.items || [];
+    items.forEach((item) => card.appendChild(settingControl(item)));
     body.appendChild(card);
   });
+
+  const log = (state && state.change_log) || [];
+  const logCard = document.createElement("article");
+  logCard.className = "card";
+  const logH = document.createElement("h3");
+  logH.textContent = "Change log";
+  logCard.appendChild(logH);
+  if (!log.length) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "No setting changes yet.";
+    logCard.appendChild(empty);
+  } else {
+    log.slice(0, 20).forEach((row) => {
+      const line = document.createElement("div");
+      line.className = "changelog";
+      const when = row.ts ? new Date(row.ts).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " ET" : "";
+      const oldV = displaySettingValue({ redact: false }, row.old);
+      const newV = displaySettingValue({ redact: false }, row.new);
+      line.innerHTML = `<div class="clog-key">${row.key || ""}</div><div class="clog-val">${oldV} → ${newV}</div><div class="clog-meta">${[when, row.who].filter(Boolean).join(" · ")}</div>`;
+      logCard.appendChild(line);
+    });
+  }
+  body.appendChild(logCard);
 
   const extras = document.createElement("article");
   extras.className = "card actions";

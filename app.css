@@ -384,8 +384,69 @@ h1, h2 { font-weight: 600; letter-spacing: -0.02em; margin: 0; }
   font-size: 15px;
 }
 .setting:last-child { border-bottom: 0; }
-.setting input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--blue); }
+.setting input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--blue); height: 32px; }
 .setting .exact { color: var(--secondary); font-variant-numeric: tabular-nums; }
+.setting .setting-lab { font-weight: 500; }
+.setting .exact-input {
+  justify-self: end;
+  width: 96px;
+  min-height: 32px;
+  border-radius: 8px;
+  background: var(--card-2, #2c2c2e);
+  color: var(--text);
+  text-align: right;
+  padding: 4px 8px;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  border: 0.5px solid var(--sep);
+}
+.setting .exact-input.wide { width: 100%; grid-column: 1 / -1; text-align: left; }
+.setting .setting-hint { grid-column: 1 / -1; color: var(--tertiary); font-size: 12px; }
+.setting .setting-error { grid-column: 1 / -1; color: #ff453a; font-size: 12px; }
+.settings-note { margin: 4px 4px 12px; line-height: 1.35; }
+.ios-toggle {
+  justify-self: end;
+  width: 51px;
+  height: 31px;
+  border-radius: 16px;
+  background: #39393d;
+  position: relative;
+  border: 0;
+  padding: 0;
+}
+.ios-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 27px; height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+  transition: transform .18s ease;
+}
+.ios-toggle.is-on { background: #30d158; }
+.ios-toggle.is-on::after { transform: translateX(20px); }
+.setting .seg { grid-column: 1 / -1; display: flex; gap: 6px; }
+.seg-btn {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 10px;
+  background: var(--card-2, #2c2c2e);
+  color: var(--secondary);
+  font-size: 14px;
+  font-weight: 600;
+  border: 0;
+}
+.seg-btn.is-on { background: var(--blue, #0a84ff); color: #fff; }
+.changelog {
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--sep);
+  font-size: 14px;
+}
+.changelog:last-child { border-bottom: 0; }
+.clog-key { font-weight: 600; }
+.clog-val { color: var(--secondary); font-variant-numeric: tabular-nums; }
+.clog-meta { color: var(--tertiary); font-size: 12px; margin-top: 2px; }
 .mode-row { display: flex; gap: 8px; }
 .mode-row .btn { flex: 1; }
 .mode-row .btn.is-on { background: var(--orange); color: #000; }

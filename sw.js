@@ -1,6 +1,6 @@
 /* Cache the app shell so it can be added to the iPhone home screen.
    Gist data is fetched from api.github.com and is never cached here. */
-const SHELL = "./shell-v10";
+const SHELL = "./shell-v12";
 const ASSETS = ["./", "./index.html", "./app.css", "./app.js", "./chart.js", "./manifest.json", "./icons/apple-touch-icon.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
